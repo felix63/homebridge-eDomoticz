@@ -1,4 +1,6 @@
 // _Extended_ (e)Domoticz Platform Plugin for HomeBridge by Marci [http://twitter.com/marcisshadow]
+// V0.0.5 - 2016/02/01
+//		- Properly implement UUID generation for custom chars & services
 // V0.0.4 - 2016/01/31
 //		- Fixed 'Siri Name' disappearance
 // V0.0.3 - 2016/01/31
@@ -50,6 +52,7 @@ module.exports = function(homebridge) {
   Service = homebridge.hap.Service;
   Characteristic = homebridge.hap.Characteristic;
   types = homebridge.hapLegacyTypes;
+  uuid = homebridge.hap.uuid;
 
   fixInheritance(eDomoticzPlatform.TotalConsumption, Characteristic);
   fixInheritance(eDomoticzPlatform.CurrentConsumption, Characteristic);
@@ -107,7 +110,8 @@ function fixInheritance(subclass, superclass) {
 
 // PowerMeter Characteristics
 eDomoticzPlatform.TotalConsumption = function() {
-	Characteristic.call(this, 'Total Consumption', 'E863F10C-079E-48FF-8F27-9C2605A29F52'); //these UUIDs will conflict with YamahaAVR at the moment
+  var charUUID = uuid.generate('eDomoticz:customchar:TotalConsumption');
+	Characteristic.call(this, 'Total Consumption', charUUID);
 	this.setProps({
 		format: 'string',
 		perms: [Characteristic.Perms.READ]
@@ -116,7 +120,8 @@ eDomoticzPlatform.TotalConsumption = function() {
 };
 
 eDomoticzPlatform.CurrentConsumption = function() {
-	Characteristic.call(this, 'Current Consumption', 'E863F10D-079E-48FF-8F27-9C2605A29F52'); //these UUIDs will conflict with YamahaAVR at the moment
+  var charUUID = uuid.generate('eDomoticz:customchar:CurrentConsumption');
+	Characteristic.call(this, 'Current Consumption', charUUID);
 	this.setProps({
 		format: 'string',
 		perms: [Characteristic.Perms.READ]
@@ -125,14 +130,16 @@ eDomoticzPlatform.CurrentConsumption = function() {
 };
 // The PowerMeter itself
 eDomoticzPlatform.MeterDeviceService = function(displayName, subtype) {
-	Service.call(this, displayName, '00000001-0000-1000-8000-135D67EC4377', subtype); //these UUIDs will conflict with YamahaAVR at the moment
+  var serviceUUID = uuid.generate('eDomoticz:powermeter:customservice');
+	Service.call(this, displayName, serviceUUID, subtype);
 	this.addCharacteristic(new eDomoticzPlatform.CurrentConsumption);
 	this.addOptionalCharacteristic(new eDomoticzPlatform.TotalConsumption);
 };
 
 // Usage Meter Characteristics
 eDomoticzPlatform.CurrentUsage = function() {
-	Characteristic.call(this, 'Current Usage', 'E863F10E-079F-49FF-8F37-9C2605A29F55'); //these UUIDs will conflict with YamahaAVR at the moment
+  var charUUID = uuid.generate('eDomoticz:customchar:CurrentUsage');
+	Characteristic.call(this, 'Current Usage', charUUID);
 	this.setProps({
 		format: 'string',
 		perms: [Characteristic.Perms.READ]
@@ -141,7 +148,8 @@ eDomoticzPlatform.CurrentUsage = function() {
 };
 // The Usage Meter itself
 eDomoticzPlatform.UsageDeviceService = function(displayName, subtype) {
-	Service.call(this, displayName, '00000002-0000-1000-8000-135D67EC4378', subtype); //these UUIDs will conflict with YamahaAVR at the moment
+  var serviceUUID = uuid.generate('eDomoticz:usagedevice:customservice');
+	Service.call(this, displayName, serviceUUID, subtype);
 	this.addCharacteristic(new eDomoticzPlatform.CurrentUsage);
 };
 /* End of Custom Services & Characteristics */
@@ -213,20 +221,20 @@ eDomoticzAccessory.prototype = {
 	setPowerState: function(powerOn, callback) {
 		var url, that = this;
 		if (powerOn) {
-			url = that.control_url + "&switchcmd=On";
-			that.log("Setting power state to on");
+			url = that.control_url + "&switchcmd="+that.onValue;
+			that.log("Setting power state to "+that.onValue);
 		} else {
-			url = that.control_url + "&switchcmd=Off";
-			that.log("Setting power state to off");
+			url = that.control_url + "&switchcmd="+that.offValue;
+			that.log("Setting power state to "+that.offValue);
 		}
 		request.put({
 			url: url
 		}, function(err, response) {
 			if (err) {
-				that.log("There was a problem sending command to" + that.name);
+				that.log("There was a problem sending command to " + that.name);
 				that.log(response);
 			} else {
-				that.log(that.name + " sent command succesfully");
+				that.log(that.name + " - sent command succesfully");
 			}
 			callback();
 		}.bind(this));
@@ -406,7 +414,7 @@ eDomoticzAccessory.prototype = {
 				var temperatureSensorService = new Service.TemperatureSensor(this.name);
 				temperatureSensorService.getCharacteristic(Characteristic.CurrentTemperature).on('get', this.getTemperature.bind(this));
 				temperatureSensorService.getCharacteristic(Characteristic.CurrentTemperature).setProps({
-					minValue: -100
+					minValue: -10
 				});
 				if (this.batteryRef && this.batteryRef < 101) { // if batteryRef == 255 we're running on mains
 					temperatureSensorService.addCharacteristic(new Characteristic.StatusLowBattery()).on('get', this.getLowBatteryStatus.bind(this));
