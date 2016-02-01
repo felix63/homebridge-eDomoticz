@@ -1,6 +1,7 @@
 // _Extended_ (e)Domoticz Platform Plugin for HomeBridge by Marci [http://twitter.com/marcisshadow]
 // V0.0.5 - 2016/02/01
 //		- Properly implement UUID generation for custom chars & services
+//    - add ssl protocol and basic auth via config fields
 // V0.0.4 - 2016/01/31
 //		- Fixed 'Siri Name' disappearance
 // V0.0.3 - 2016/01/31
@@ -26,9 +27,12 @@
 // 	"platforms": [{
 //         "platform": "eDomoticz",
 //         "name": "eDomoticz",
-//         "server": "127.0.0.1",	// or "user:pass@ip"
-//         "port": "8080",
-//		   "roomid": 0  	// 0 = all sensors, otherwise, room idx as shown at http://server:port/#/Roomplan
+//         "server": "127.0.0.1",
+//         "port": "8080",  //8080 or, if https, 443.
+//		     "roomid": 0 , 	  // 0 = all sensors, otherwise, room idx as shown at http://server:port/#/Roomplan
+//         "ssl": false,
+//         "user": "username",
+//         "password": "password"
 //	}],
 //
 // 	"accessories":[]
@@ -67,9 +71,14 @@ module.exports = function(homebridge) {
 function eDomoticzPlatform(log, config) {
 	this.log = log;
 	this.config = config;
-	this.server = config["server"];
 	this.port = config["port"];
 	this.room = config["roomid"];
+  this.protocol = config["ssl"] ? "https" : "http";
+  if (config["user"]!==""){
+      this.server = this.user + ":" + this.password + "@" + config["server"];
+  } else {
+      this.server = config["server"];
+  }
 }
 
 /* Handy Utility Functions */
@@ -169,9 +178,9 @@ eDomoticzPlatform.prototype = {
 		asyncCalls++;
 		var domurl;
 		if (!(this.roomid) || this.roomid == 0) {
-			domurl = "http://" + this.server + ":" + this.port + "/json.htm?type=devices&used=true&order=Name";
+			domurl = this.protocol+"://" + this.server + ":" + this.port + "/json.htm?type=devices&used=true&order=Name";
 		} else {
-			domurl = "http://" + this.server + ":" + this.port + "/json.htm?type=devices&plan=" + this.room + "&used=true&order=Name";
+			domurl = this.protocol+"://" + this.server + ":" + this.port + "/json.htm?type=devices&plan=" + this.room + "&used=true&order=Name";
 		}
 		request.get({
 			url: domurl,
@@ -209,7 +218,7 @@ function eDomoticzAccessory(log, server, port, IsScene, status, idx, name, haveD
 	this.onValue = "On";
 	this.offValue = "Off";
 	this.param = "switchlight"; 	//need an if(this.Type=='Lighting 1' || 'Lighting 2'){} etc to set param for all other types.
-	this.access_url = "http://" + this.server + ":" + this.port + "/json.htm?";
+	this.access_url = this.protocol+"://" + this.server + ":" + this.port + "/json.htm?";
 	this.control_url = this.access_url + "type=command&param=" + this.param + "&idx=" + this.idx;
 	this.status_url = this.access_url + "type=devices&rid=" + this.idx;
 }
